@@ -1,69 +1,84 @@
 const db = require('../config/db');
 
-exports.getAllPosts = (req, res) => {
-  db.query(
-    `SELECT posts.id, posts.titulo, posts.descripcion, users.username 
-     FROM posts 
-     JOIN users ON posts.user_id = users.id 
-     ORDER BY posts.id DESC`,
-    (err, results) => {
-    if (err) return res.status(500).json({ error: 'Error al obtener posts' });
-    res.json(results);
-  });
+exports.getAllPosts = async (req, res) => {
+  try {
+    const result = await db.query(`
+      SELECT posts.id, posts.titulo, posts.descripcion, users.username 
+      FROM posts 
+      JOIN users ON posts.user_id = users.id 
+      ORDER BY posts.id DESC
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener posts' });
+  }
 };
 
-exports.getPostsByUser = (req, res) => {
+exports.getPostsByUser = async (req, res) => {
   const userId = req.user.id;
-  db.query('SELECT * FROM posts WHERE user_id = ?', [userId], (err, results) => {
-    if (err) return res.status(500).json({ error: 'Error al obtener posts del usuario' });
-    res.json(results);
-  });
+  try {
+    const result = await db.query('SELECT * FROM posts WHERE user_id = $1', [userId]);
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener posts del usuario' });
+  }
 };
 
-exports.getPostById = (req, res) => {
+exports.getPostById = async (req, res) => {
   const { id } = req.params;
-  db.query(
-    `SELECT posts.id, posts.titulo, posts.descripcion, users.username 
-     FROM posts 
-     JOIN users ON posts.user_id = users.id 
-     WHERE posts.id = ?`,
-    [id],
-    (err, results) => {
-      if (err || results.length === 0) {
-        return res.status(404).json({ error: 'Post no encontrado' });
-      }
-      res.json(results[0]);
+  try {
+    const result = await db.query(
+      `SELECT posts.id, posts.titulo, posts.descripcion, users.username 
+       FROM posts 
+       JOIN users ON posts.user_id = users.id 
+       WHERE posts.id = $1`,
+      [id]
+    );
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Post no encontrado' });
     }
-  );
+    res.json(result.rows[0]);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener el post' });
+  }
 };
 
-exports.createPost = (req, res) => {
+exports.createPost = async (req, res) => {
   const { titulo, descripcion } = req.body;
   const userId = req.user.id;
-
-  db.query('INSERT INTO posts (titulo, descripcion, user_id) VALUES (?, ?, ?)', [titulo, descripcion, userId], (err, result) => {
-    if (err) {
-      return res.status(500).json({ error: 'Error al crear post' });
-    }
-    res.json({ message: 'Post creado', postId: result.insertId });
-  });
+  try {
+    const result = await db.query(
+      'INSERT INTO posts (titulo, descripcion, user_id) VALUES ($1, $2, $3) RETURNING id',
+      [titulo, descripcion, userId]
+    );
+    res.json({ message: 'Post creado', postId: result.rows[0].id });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al crear post' });
+  }
 };
-exports.updatePost = (req, res) => {
+
+exports.updatePost = async (req, res) => {
   const { id } = req.params;
   const { titulo, descripcion } = req.body;
-  db.query(
-    'UPDATE posts SET titulo = ?, descripcion = ? WHERE id = ?',
-    [titulo, descripcion, id],
-    (err, result) => {
-      if (err || result.affectedRows === 0) return res.status(404).json({ error: 'Post no encontrado o error al actualizar' });
-      res.json({ message: 'Post actualizado' });
-    }
-  );
+  try {
+    const result = await db.query(
+      'UPDATE posts SET titulo = $1, descripcion = $2 WHERE id = $3',
+      [titulo, descripcion, id]
+    );
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Post no encontrado o error al actualizar' });
+    res.json({ message: 'Post actualizado' });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al actualizar el post' });
+  }
 };
-exports.deletePost = (req, res) => {
+
+exports.deletePost = async (req, res) => {
   const { id } = req.params;
-  db.query('DELETE FROM posts WHERE id = ?', [id], (err, result) => {
-    if (err || result.affectedRows === 0) return res.status(404).json({ error: 'Post no encontrado' });
+  try {
+    const result = await db.query('DELETE FROM posts WHERE id = $1', [id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Post no encontrado' });
     res.json({ message: 'Post eliminado' });
-  });
-}
+  } catch (err) {
+    res.status(500).json({ error: 'Error al eliminar el post' });
+  }
+};

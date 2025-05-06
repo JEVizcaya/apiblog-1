@@ -22,10 +22,19 @@ exports.getPostsByUser = (req, res) => {
 
 exports.getPostById = (req, res) => {
   const { id } = req.params;
-  db.query('SELECT * FROM posts WHERE id = ?', [id], (err, results) => {
-    if (err || results.length === 0) return res.status(404).json({ error: 'Post no encontrado' });
-    res.json(results[0]);
-  });
+  db.query(
+    `SELECT posts.id, posts.titulo, posts.descripcion, users.username 
+     FROM posts 
+     JOIN users ON posts.user_id = users.id 
+     WHERE posts.id = ?`,
+    [id],
+    (err, results) => {
+      if (err || results.length === 0) {
+        return res.status(404).json({ error: 'Post no encontrado' });
+      }
+      res.json(results[0]);
+    }
+  );
 };
 
 exports.createPost = (req, res) => {
